@@ -39,12 +39,26 @@ test("shipping reply completion hands words back only on proven refusals", () =>
   let end=begin, depth=0;
   for(;end<view.length;end++){if(view[end]==="{")depth++;else if(view[end]==="}" && --depth===0)break;}
   const handler=view.slice(start,end+1);
-  for(const code of [-1,0,1,2,9,15,64,65,69,70,75,76,77,127,137,255]) for(const draft of ["", "newer synthetic draft"]) for(const sameChat of [true,false]){
+  for(const code of [-2,-1,0,1,2,9,15,64,65,69,70,75,76,77,78,127,137,255]) for(const draft of ["", "newer synthetic draft"]) for(const sameChat of [true,false]){
     const root:any={inThread:true,active:{chat:sameChat ? "synthetic" : "other"},requestThreadLoad(){}}, composeField={text:draft};
     const done=new Function("root","composeField","SendState",handler+";return onReplyExited;")(root,composeField,SendState);
     done({chat:"synthetic",text:"synthetic words",reply:{guid:"G"}},code,SendState.replyFailure(code,""));
-    const restored = sameChat && draft === "" && [1,64,65,75,77].includes(code);
+    const restored = sameChat && draft === "" && [-2,1,64,65,75,77,78].includes(code);
     expect(composeField.text).toBe(restored ? "synthetic words" : draft);
     expect(root.replyTarget).toEqual(restored ? {guid:"G"} : undefined);
   }
+});
+
+test("shipping Process completion treats every crash status as uncertain", () => {
+  const line = source.slice(source.indexOf("id: replyProc"));
+  const handler = line.match(/onExited: function\(code, status\) \{([^}]+)\}/)![1];
+  for (const status of [0,1]) for (const code of [0,1,64,65,75,77,78]) {
+    let result = -99;
+    new Function("root","SendState","code","status",handler)({finishReply:(n:number)=>result=n},SendState,code,status);
+    expect(result).toBe(status === 0 ? code : 76);
+    if (status !== 0) expect(SendState.replyCanRestore(result)).toBe(false);
+  }
+  expect(line).toContain("root.finishReply(SendState.REPLY_NOT_STARTED)");
+  expect(SendState.replyCanRestore(SendState.REPLY_NOT_STARTED)).toBe(true);
+  expect(SendState.replyCanRestore(70)).toBe(false);
 });

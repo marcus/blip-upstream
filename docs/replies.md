@@ -29,7 +29,7 @@ restores whichever app was there.
 2. A draft in the composer stops the run, before anything is pressed.
 3. The bubble search in `imsg-react` presses `Reply…` once.
 4. The reply view must name the target. The field is filled through AX and read back.
-5. Focus is rechecked, then Return is pressed.
+5. Recipient, target, front app, reply-field identity and its exact text are rechecked, then Return is pressed.
 6. `chat.db` must show your row with this text naming the target's thread.
 7. The reply view is closed and the previous app comes back.
 
@@ -39,6 +39,8 @@ restores whichever app was there.
 | 75 | Nothing was sent, including a locked Mac or a draft | Failed bubble, words and target back in the composer |
 | 76 | Return was pressed but not confirmed, or Messages reported an error | Says so; **never hands the words back**, because a resend could duplicate |
 | 65, 77 | Refused or no permission | Same as 75 |
+| 78 or helper never started | Refused locally before ssh | Words and target back in the composer |
+| Crash/signal exit | Return may have reached the Mac | Check Messages; no automatic handback |
 | 69, 70, 255 | Lost transport or unexpected error | Check Messages; no automatic handback |
 
 Never retry after Return. The log, `~/.blip/reply.log`, holds the outcome code, exit
@@ -148,3 +150,5 @@ For a live run, target only your own self-thread:
 This split uses the native AX helpers and bounded stale-picker preflight already on main from the reactions feature. Its only changes to `imsg-react` add picture-bubble discovery and carry that flag into the native action request.
 
 Recipient verification fails closed: immediately before Return the Messages window must have no sheet and its title must exactly match the target address or contact name, in addition to the target label and time in the reply transcript. This title shape needs gateway validation; unsupported titles refuse the send. Return followed by slow field clearing, a confirm database error, or lost ssh is unconfirmed: check Messages before sending again. Reply jobs and their result bubbles are owned by BarWidget and survive view closure.
+
+Identical text or picture labels with a later twin at the same HH:MM are refused before opening Messages, even across different days. Reply targeting does not rely on an ordinal count to distinguish these twins.

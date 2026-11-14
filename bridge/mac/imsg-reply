@@ -136,7 +136,7 @@ function send(q) {
   delay(0.3);
   if (String(safe(() => el.value(), "")) !== q.body) { safe(() => { el.value = ""; }); return { ok: false, error: "fill-failed" }; }
   const now = info(focused());
-  if (!identity(q) || !viewNames(q) || !front() || now.id !== "messageBodyField" || now.placeholder !== "Reply") {
+  if (!identity(q) || !viewNames(q) || !front() || now.id !== "messageBodyField" || now.placeholder !== "Reply" || String(safe(() => focused().value(), "")) !== q.body) {
     safe(() => { el.value = ""; });
     return { ok: false, error: "focus-moved" };
   }
@@ -274,8 +274,13 @@ def resolve(con, imsg, guid: str, self_handles: list) -> dict:
     if row["balloon_bundle_id"]:
         raise Stop("unsupported", EX_UNSUPPORTED, "replying to a link or app card is not supported yet")
     if row["cache_has_attachments"]:
-        return resolve_picture(con, imsg, row, self_handles)
-    return rx.resolve(con, imsg, guid, self_handles)
+        target = resolve_picture(con, imsg, row, self_handles)
+    else:
+        target = rx.resolve(con, imsg, guid, self_handles)
+    # The reply transcript cannot verify which identical label was selected.
+    if target["ordinal"] > 0:
+        raise Stop("ambiguous", EX_TEMPFAIL, "another message has the same text and time label; nothing was sent")
+    return target
 
 
 def threads(con, target: dict) -> set:

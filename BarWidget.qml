@@ -160,9 +160,9 @@ BarWidget {
   Process {
     id: replyProc
     property string lastErr: ""
-    onRunningChanged: if (!running) Qt.callLater(function() { if (!replyProc.running && root.replyJob) root.finishReply(70) })
+    onRunningChanged: if (!running) Qt.callLater(function() { if (!replyProc.running && root.replyJob) root.finishReply(SendState.REPLY_NOT_STARTED) })
     stderr: StdioCollector { onStreamFinished: replyProc.lastErr = text }
-    onExited: function(code, status) { root.finishReply(code) }
+    onExited: function(code, status) { root.finishReply(SendState.replyExitCode(code, status)) }
   }
 
   // Local desktop-toast preferences outlive either view, just like tapbacks.

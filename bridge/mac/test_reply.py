@@ -107,11 +107,23 @@ class Targets(unittest.TestCase):
         db.msg("P2", "", files=[PNG], date=BASE + 10**9, me=0)
         self.assertTrue(tool.resolve(db.con, imsg, "P1", [])["picture"])
 
-    def test_the_same_minute_on_a_later_day_is_counted_from_the_bottom(self):
+    def test_the_same_minute_on_a_later_day_is_refused(self):
         db = Db()
         db.msg("P1", "", files=[PNG], date=BASE)
         db.msg("P2", "", files=[PNG], date=BASE + 86400 * 2 * 10**9)
-        self.assertEqual(tool.resolve(db.con, imsg, "P1", [])["ordinal"], 1)
+        self.refused(db, "P1", "ambiguous")
+
+    def test_identical_text_in_a_minute_or_on_another_day_is_refused(self):
+        for offset in (10**9, 86400 * 2 * 10**9):
+            db = Db()
+            db.msg("T", "ok")
+            db.msg("TWIN", "ok", date=BASE + offset)
+            self.refused(db, "T", "ambiguous")
+
+    def test_picture_with_balloon_is_refused(self):
+        db = Db()
+        db.msg("P", files=[PNG], balloon_bundle_id="x.app")
+        self.refused(db, "P", "unsupported")
 
     def test_a_self_thread_picture_aims_at_the_sent_row_and_knows_its_echo(self):
         db = Db()
@@ -269,6 +281,24 @@ class Run(unittest.TestCase):
         s = Script(send={"ok": False, "error": "timeout"}, land=self.land(db, "T"))
         self.assertEqual(self.go(db, s)["result"], "sent")
         self.assertEqual(s.calls.count("send"), 1)
+
+    def test_send_script_exception_never_claims_nothing_sent(self):
+        db = Db(); db.msg("T", "hello")
+        script = Script()
+        original = script.run
+        def run(q):
+            if q["mode"] == "send":
+                raise RuntimeError("lost script")
+            return original(q)
+        script.run = run
+        with patch.object(tool, "CONFIRM_SECONDS", 0.5), self.assertRaises(rx.Stop) as ctx:
+            self.go(db, script)
+        self.assertEqual(ctx.exception.exit_code, tool.EX_UNCONFIRMED)
+
+    def test_wrong_text_in_correct_thread_cannot_confirm(self):
+        db = Db(); db.msg("T", "hello")
+        db.msg("R", "other words", date=BASE+1, thread_originator_guid="T")
+        self.assertIsNone(tool.find_reply(db.con, imsg, {"T"}, "the reply", BASE))
 
     def test_a_row_with_the_wrong_thread_or_text_does_not_confirm(self):
         db = Db(); db.msg("T", "hello"); db.msg("OTHER", "other", date=BASE + MINUTE)
